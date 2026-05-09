@@ -186,3 +186,8 @@ def test_parse_metadata_empty_last_section_raises():
 def test_parse_metadata_error_includes_line_number():
     with pytest.raises(ValueError, match="2"):  # line 2
         parse_metadata(["title = A", "title = B"])
+
+def test_parse_metadata_bare_comment_char_with_trailing_comment():
+    """Bare ; or # as value should still have trailing comments stripped."""
+    result = parse_metadata(["delimiter = ; # real comment"])
+    assert result == {"delimiter": ";"}

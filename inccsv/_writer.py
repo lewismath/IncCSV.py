@@ -37,6 +37,11 @@ def _format_value(value: int | str) -> str:
 
 def _validate_and_format(value: Any, context: str) -> str:
     """Validate value type and return formatted string."""
+    if isinstance(value, bool):
+        raise ValueError(
+            f"Metadata value at {context} must be int or str, "
+            f"got bool: {value!r}"
+        )
     if not isinstance(value, (int, str)):
         raise ValueError(
             f"Metadata value at {context} must be int or str, "
@@ -99,6 +104,13 @@ def write_inc(
 
         if rows:
             fieldnames = list(rows[0].keys())
+            expected = set(fieldnames)
+            for idx, row in enumerate(rows[1:], start=1):
+                if set(row.keys()) != expected:
+                    raise ValueError(
+                        f"Row {idx} has different keys than row 0: "
+                        f"expected {sorted(expected)}, got {sorted(row.keys())}"
+                    )
             writer = csv.DictWriter(
                 f, fieldnames=fieldnames, lineterminator='\n', **csv_kwargs
             )

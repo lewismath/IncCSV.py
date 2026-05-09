@@ -34,7 +34,8 @@ def _strip_comment(line: str) -> str:
     - starts the line (after optional whitespace), or
     - is preceded by at least one non-whitespace character in the value part
       (i.e., after the first '=' on the line).
-    This allows bare comment characters as values: `delimiter = ;` is preserved.
+    This allows bare comment characters as values: `delimiter = ;` is preserved,
+    but `delimiter = ; # comment` strips the trailing comment.
     """
     in_quote = False
     after_eq = False
@@ -44,9 +45,12 @@ def _strip_comment(line: str) -> str:
             in_quote = not in_quote
         elif not in_quote:
             if ch in '#;':
-                # Strip if: full-line comment (not after =), OR value has some content before marker
                 if not after_eq or value_has_content:
                     return line[:i].rstrip()
+                else:
+                    # Bare comment char IS the value — treat as content
+                    # so any subsequent markers are stripped.
+                    value_has_content = True
             elif ch == '=':
                 after_eq = True
             elif after_eq and ch not in ' \t':

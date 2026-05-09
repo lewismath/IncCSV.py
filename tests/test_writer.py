@@ -78,3 +78,13 @@ def test_write_no_rows(tmp_path):
     result = read_inc(path)
     assert result.metadata["title"] == "Empty"
     assert result.rows == []
+
+def test_write_bool_raises():
+    with pytest.raises(ValueError, match="int or str"):
+        write_inc("/dev/null", [{"x": "1"}], metadata={"flag": True})
+
+def test_write_ragged_rows_raises(tmp_path):
+    path = str(tmp_path / "out.inc")
+    rows = [{"a": "1", "b": "2"}, {"a": "3", "c": "4"}]  # row 1 has 'c' not 'b'
+    with pytest.raises(ValueError, match="Row 1"):
+        write_inc(path, rows)
