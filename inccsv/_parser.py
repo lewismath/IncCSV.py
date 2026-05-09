@@ -28,13 +28,29 @@ def _is_delimiter_line(line: str) -> bool:
 
 
 def _strip_comment(line: str) -> str:
-    """Strip trailing # or ; comment from a line, respecting quoted strings."""
+    """Strip trailing # or ; comment from a line, respecting quoted strings.
+
+    A comment marker is only recognised if it either:
+    - starts the line (after optional whitespace), or
+    - is preceded by at least one non-whitespace character in the value part
+      (i.e., after the first '=' on the line).
+    This allows bare comment characters as values: `delimiter = ;` is preserved.
+    """
     in_quote = False
+    after_eq = False
+    value_has_content = False
     for i, ch in enumerate(line):
         if ch == '"':
             in_quote = not in_quote
-        elif ch in '#;' and not in_quote:
-            return line[:i].rstrip()
+        elif not in_quote:
+            if ch in '#;':
+                # Strip if: full-line comment (not after =), OR value has some content before marker
+                if not after_eq or value_has_content:
+                    return line[:i].rstrip()
+            elif ch == '=':
+                after_eq = True
+            elif after_eq and ch not in ' \t':
+                value_has_content = True
     return line.rstrip()
 
 

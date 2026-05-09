@@ -26,48 +26,18 @@ class IncFile:
         return pd.DataFrame(self.rows)
 
 
-def _parse_structure_raw(meta_lines: list[str]) -> dict[str, str]:
-    """
-    Re-parse only the [structure] section from raw metadata lines without comment stripping.
-
-    The parser's _strip_comment treats '#' and ';' as comment characters, which corrupts
-    structure values like 'delimiter = ;' or 'comment = #'. We recover the raw values here.
-    """
-    in_structure = False
-    result: dict[str, str] = {}
-    for line in meta_lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if stripped.startswith('['):
-            in_structure = stripped == '[structure]'
-            continue
-        if in_structure and '=' in stripped:
-            key, _, raw_value = stripped.partition('=')
-            key = key.strip()
-            value = raw_value.strip()
-            result[key] = value
-    return result
-
-
-def _csv_kwargs_from_metadata(
-    metadata: MetadataDict,
-    meta_lines: list[str],
-) -> tuple[dict[str, Any], str | None]:
+def _csv_kwargs_from_metadata(metadata: MetadataDict) -> tuple[dict[str, Any], str | None]:
     """Extract csv.DictReader kwargs and comment char from [structure] metadata section."""
-    # Use raw-parsed structure values to avoid comment-stripping corruption
-    raw_structure = _parse_structure_raw(meta_lines)
-
+    structure = metadata.get("structure", {})
     kwargs: dict[str, Any] = {}
     comment_char: str | None = None
-
-    if "delimiter" in raw_structure:
-        kwargs["delimiter"] = raw_structure["delimiter"]
-    if "quotechar" in raw_structure:
-        kwargs["quotechar"] = raw_structure["quotechar"]
-    if "comment" in raw_structure:
-        comment_char = raw_structure["comment"]
-
+    if isinstance(structure, dict):
+        if "delimiter" in structure:
+            kwargs["delimiter"] = str(structure["delimiter"])
+        if "quotechar" in structure:
+            kwargs["quotechar"] = str(structure["quotechar"])
+        if "comment" in structure:
+            comment_char = str(structure["comment"])
     return kwargs, comment_char
 
 
@@ -86,13 +56,11 @@ def read_inc(path: str, **csv_kwargs: Any) -> IncFile:
     meta_lines, csv_start = split_inc(path)
     metadata: MetadataDict = parse_metadata(meta_lines) if meta_lines else {}
 
-    base_kwargs, comment_char = _csv_kwargs_from_metadata(metadata, meta_lines)
+    base_kwargs, comment_char = _csv_kwargs_from_metadata(metadata)
 
-    # Caller comment kwarg overrides structure metadata
     if "comment" in csv_kwargs:
         comment_char = str(csv_kwargs.pop("comment"))
 
-    # Caller kwargs override structure metadata
     base_kwargs.update(csv_kwargs)
 
     with open(path, encoding="utf-8") as f:
