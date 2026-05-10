@@ -22,31 +22,36 @@ class IncSchema:
     description: dict[str, str] = field(default_factory=dict)
 
 
+# Section name aliases match Julia's getsection() — case-insensitive on both sides.
+_MUST_ALIASES    = frozenset({"must", "required"})
+_MAYBE_ALIASES   = frozenset({"maybe", "optional"})
+_SCHEMA_ALIASES  = frozenset({"schema", "options"})
+_DESC_ALIASES    = frozenset({"description", "descriptions", "describe"})
+
+# Values that mean False for allow_extra — matches Julia's parse_schema_bool.
+_FALSY_ALLOW_EXTRA = frozenset({"false", "0", "no", "deny", "closed"})
+
+
+def _get_section(meta: MetadataDict, aliases: frozenset[str]) -> dict:
+    """Return the first section whose lowercased name is in aliases, or {}."""
+    for key, value in meta.items():
+        if key.lower() in aliases and isinstance(value, dict):
+            return value
+    return {}
+
+
 def read_schema(path: str) -> IncSchema:
     """Read a schema definition from an INC file."""
     inc = read_inc(path)
     meta = inc.metadata
 
-    allow_extra = True
-    schema_section = meta.get("schema", {})
-    if isinstance(schema_section, dict):
-        ae_raw = schema_section.get("allow_extra", "true")
-        allow_extra = str(ae_raw).lower() not in ("false", "0", "no")
+    schema_section = _get_section(meta, _SCHEMA_ALIASES)
+    ae_raw = schema_section.get("allow_extra", "true")
+    allow_extra = str(ae_raw).lower() not in _FALSY_ALLOW_EXTRA
 
-    must: dict[str, str] = {}
-    must_section = meta.get("MUST", {})
-    if isinstance(must_section, dict):
-        must = {k: str(v) for k, v in must_section.items()}
-
-    maybe: dict[str, str] = {}
-    maybe_section = meta.get("MAYBE", {})
-    if isinstance(maybe_section, dict):
-        maybe = {k: str(v) for k, v in maybe_section.items()}
-
-    description: dict[str, str] = {}
-    desc_section = meta.get("description", {})
-    if isinstance(desc_section, dict):
-        description = {k: str(v) for k, v in desc_section.items()}
+    must        = {k: str(v) for k, v in _get_section(meta, _MUST_ALIASES).items()}
+    maybe       = {k: str(v) for k, v in _get_section(meta, _MAYBE_ALIASES).items()}
+    description = {k: str(v) for k, v in _get_section(meta, _DESC_ALIASES).items()}
 
     return IncSchema(must=must, maybe=maybe, allow_extra=allow_extra, description=description)
 

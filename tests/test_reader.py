@@ -67,6 +67,59 @@ def test_read_inc_semicolon_delimiter_from_structure(tmp_path):
     result = read_inc(path)
     assert result.rows == [{"name": "Ada", "score": "10"}]
 
+def test_read_inc_julia_delim_alias(tmp_path):
+    # Julia writes `delim` not `delimiter` — we must accept both
+    content = "---\n[structure]\ndelim = ;\n---\nname;score\nAda;10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [{"name": "Ada", "score": "10"}]
+
+def test_read_inc_delimiter_takes_precedence_over_delim(tmp_path):
+    # If both are present, `delimiter` wins
+    content = "---\n[structure]\ndelim = ;\ndelimiter = |\n---\nname|score\nAda|10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [{"name": "Ada", "score": "10"}]
+
+def test_read_inc_tab_alias(tmp_path):
+    # Julia writes `delim = tab` for TSV — Python must translate to \t
+    content = "---\n[structure]\ndelim = tab\n---\nname\tscore\nAda\t10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [{"name": "Ada", "score": "10"}]
+
+def test_read_inc_space_alias(tmp_path):
+    content = "---\n[structure]\ndelim = space\n---\nname score\nAda 10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [{"name": "Ada", "score": "10"}]
+
+def test_read_inc_int_as_char(tmp_path):
+    # Julia allows `delim = 44` meaning chr(44) = ','
+    content = "---\n[structure]\ndelim = 44\n---\nname,score\nAda,10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [{"name": "Ada", "score": "10"}]
+
+def test_read_inc_escapechar_from_structure(tmp_path):
+    content = "---\n[structure]\nescapechar = |\n---\nname,score\nAda,10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [{"name": "Ada", "score": "10"}]
+
+def test_read_inc_unknown_structure_key_raises(tmp_path):
+    content = "---\n[structure]\ntypo_key = ;\n---\nname,score\nAda,10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    with pytest.raises(ValueError, match="unknown key"):
+        read_inc(path)
+
+def test_read_inc_julia_only_structure_key_accepted(tmp_path):
+    # Julia-only keys (e.g. missingstring) are silently accepted, not applied
+    content = "---\n[structure]\nmissingstring = NA\n---\nname,score\nAda,10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [{"name": "Ada", "score": "10"}]
+
 def test_read_inc_caller_kwargs_override_structure(tmp_path):
     content = "---\n[structure]\ndelimiter = ;\n---\nname|score\nAda|10\n"
     path = write_file(tmp_path, "data.inc", content)

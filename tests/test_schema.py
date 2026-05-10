@@ -59,6 +59,56 @@ def test_read_schema_empty_schema_file(tmp_path):
     assert schema.maybe == {}
     assert schema.allow_extra is True
 
+def test_read_schema_lowercase_section_names(tmp_path):
+    # Julia accepts [must] and [maybe] (lowercase)
+    content = "---\n[must]\ntitle = String\n[maybe]\nauthor = String\n---\n"
+    path = make_schema_file(tmp_path, content)
+    schema = read_schema(path)
+    assert schema.must == {"title": "String"}
+    assert schema.maybe == {"author": "String"}
+
+def test_read_schema_required_alias(tmp_path):
+    content = "---\n[required]\ntitle = String\n---\n"
+    path = make_schema_file(tmp_path, content)
+    schema = read_schema(path)
+    assert schema.must == {"title": "String"}
+
+def test_read_schema_optional_alias(tmp_path):
+    content = "---\n[optional]\nauthor = String\n---\n"
+    path = make_schema_file(tmp_path, content)
+    schema = read_schema(path)
+    assert schema.maybe == {"author": "String"}
+
+def test_read_schema_options_alias_for_schema(tmp_path):
+    content = "---\n[options]\nallow_extra = false\n[MUST]\ntitle = String\n---\n"
+    path = make_schema_file(tmp_path, content)
+    schema = read_schema(path)
+    assert schema.allow_extra is False
+
+def test_read_schema_allow_extra_deny(tmp_path):
+    content = "---\n[schema]\nallow_extra = deny\n[MUST]\ntitle = String\n---\n"
+    path = make_schema_file(tmp_path, content)
+    schema = read_schema(path)
+    assert schema.allow_extra is False
+
+def test_read_schema_allow_extra_closed(tmp_path):
+    content = "---\n[schema]\nallow_extra = closed\n[MUST]\ntitle = String\n---\n"
+    path = make_schema_file(tmp_path, content)
+    schema = read_schema(path)
+    assert schema.allow_extra is False
+
+def test_read_schema_allow_extra_no(tmp_path):
+    content = "---\n[schema]\nallow_extra = no\n[MUST]\ntitle = String\n---\n"
+    path = make_schema_file(tmp_path, content)
+    schema = read_schema(path)
+    assert schema.allow_extra is False
+
+def test_read_schema_descriptions_alias(tmp_path):
+    content = "---\n[MUST]\ntitle = String\n[descriptions]\ntitle = The dataset title\n---\n"
+    path = make_schema_file(tmp_path, content)
+    schema = read_schema(path)
+    assert schema.description == {"title": "The dataset title"}
+
 
 # --- validate_schema ---
 

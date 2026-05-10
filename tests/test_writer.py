@@ -64,6 +64,35 @@ def test_write_newline_in_value_raises():
     with pytest.raises(ValueError, match="newline"):
         write_inc("/dev/null", [{"x": "1"}], metadata={"bad": "line1\nline2"})
 
+def test_write_semicolon_in_value_is_quoted(tmp_path):
+    path = str(tmp_path / "out.inc")
+    write_inc(path, [], metadata={"sep": "a;b"})
+    content = (tmp_path / "out.inc").read_text()
+    assert 'sep = "a;b"' in content
+
+def test_write_hash_in_value_is_quoted(tmp_path):
+    path = str(tmp_path / "out.inc")
+    write_inc(path, [], metadata={"note": "see #3"})
+    content = (tmp_path / "out.inc").read_text()
+    assert 'note = "see #3"' in content
+
+def test_write_equals_in_value_is_quoted(tmp_path):
+    path = str(tmp_path / "out.inc")
+    write_inc(path, [], metadata={"expr": "x=y"})
+    content = (tmp_path / "out.inc").read_text()
+    assert 'expr = "x=y"' in content
+
+def test_write_bracket_in_value_is_quoted(tmp_path):
+    path = str(tmp_path / "out.inc")
+    write_inc(path, [], metadata={"val": "[foo]"})
+    content = (tmp_path / "out.inc").read_text()
+    assert 'val = "[foo]"' in content
+
+def test_write_carriage_return_raises(tmp_path):
+    path = str(tmp_path / "out.inc")
+    with pytest.raises(ValueError, match="newlines"):
+        write_inc(path, [], metadata={"key": "a\rb"})
+
 def test_write_custom_delimiter(tmp_path):
     path = str(tmp_path / "out.inc")
     rows = [{"name": "Ada", "score": "10"}]

@@ -8,6 +8,9 @@ from typing import Any
 from ._parser import MetadataDict
 
 _INT_PATTERN = re.compile(r'^[+-]?\d+$')
+# Characters that Julia's escape_value also quotes; quoting these prevents
+# Julia's strip_comment from silently truncating Python-written values.
+_NEEDS_QUOTE_CHARS = frozenset('#;=[]')
 
 
 def _needs_quoting(s: str) -> bool:
@@ -18,6 +21,8 @@ def _needs_quoting(s: str) -> bool:
         return True
     if '"' in s or '\\' in s:
         return True
+    if _NEEDS_QUOTE_CHARS.intersection(s):
+        return True
     if _INT_PATTERN.match(s):
         return True
     return False
@@ -27,7 +32,7 @@ def _format_value(value: int | str) -> str:
     """Serialise a metadata value to its INI representation."""
     if isinstance(value, int):
         return str(value)
-    if '\n' in value:
+    if '\n' in value or '\r' in value:
         raise ValueError(f"Metadata string value cannot contain newlines: {value!r}")
     if _needs_quoting(value):
         escaped = value.replace('\\', '\\\\').replace('"', '\\"')
