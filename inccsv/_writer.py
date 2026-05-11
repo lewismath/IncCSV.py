@@ -59,21 +59,25 @@ def _metadata_to_lines(metadata: MetadataDict) -> list[str]:
     """Serialise a metadata dict to INI lines (without delimiters)."""
     lines: list[str] = []
 
-    # Global keys first
-    for key, value in metadata.items():
-        if not isinstance(value, dict):
-            lines.append(f"{key} = {_validate_and_format(value, repr(key))}")
+    # Global keys first, sorted alphabetically
+    scalar_keys = sorted([key for key, value in metadata.items() if not isinstance(value, dict)])
+    for key in scalar_keys:
+        value = metadata[key]
+        lines.append(f"{key} = {_validate_and_format(value, repr(key))}")
 
-    # Sections
-    for section, content in metadata.items():
-        if isinstance(content, dict):
-            if not content:
-                raise ValueError(f"Section [{section}] is empty (no properties defined)")
-            lines.append(f"[{section}]")
-            for key, value in content.items():
-                lines.append(
-                    f"{key} = {_validate_and_format(value, f'[{section}].{key!r}')}"
-                )
+    # Sections, sorted alphabetically
+    section_keys = sorted([key for key, value in metadata.items() if isinstance(value, dict)])
+    for section in section_keys:
+        content = metadata[section]
+        if not content:
+            raise ValueError(f"Section [{section}] is empty (no properties defined)")
+        lines.append(f"[{section}]")
+        # Keys within section sorted alphabetically
+        for key in sorted(content.keys()):
+            value = content[key]
+            lines.append(
+                f"{key} = {_validate_and_format(value, f'[{section}].{key!r}')}"
+            )
 
     return lines
 

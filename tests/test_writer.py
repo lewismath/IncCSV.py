@@ -117,3 +117,27 @@ def test_write_ragged_rows_raises(tmp_path):
     rows = [{"a": "1", "b": "2"}, {"a": "3", "c": "4"}]  # row 1 has 'c' not 'b'
     with pytest.raises(ValueError, match="Row 1"):
         write_inc(path, rows)
+
+def test_write_scalars_before_sections(tmp_path):
+    path = str(tmp_path / "out.inc")
+    write_inc(path, [], metadata={"columns": {"a": "1"}, "title": "Test"})
+    content = (tmp_path / "out.inc").read_text()
+    assert content.index("title") < content.index("[columns]")
+
+def test_write_scalar_keys_sorted(tmp_path):
+    path = str(tmp_path / "out.inc")
+    write_inc(path, [], metadata={"z_key": "last", "a_key": "first", "m_key": "mid"})
+    content = (tmp_path / "out.inc").read_text()
+    assert content.index("a_key") < content.index("m_key") < content.index("z_key")
+
+def test_write_sections_sorted(tmp_path):
+    path = str(tmp_path / "out.inc")
+    write_inc(path, [], metadata={"z_sec": {"k": "v"}, "a_sec": {"k": "v"}})
+    content = (tmp_path / "out.inc").read_text()
+    assert content.index("[a_sec]") < content.index("[z_sec]")
+
+def test_write_section_keys_sorted(tmp_path):
+    path = str(tmp_path / "out.inc")
+    write_inc(path, [], metadata={"cols": {"z": "last", "a": "first"}})
+    content = (tmp_path / "out.inc").read_text()
+    assert content.index("a = ") < content.index("z = ")
