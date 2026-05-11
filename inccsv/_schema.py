@@ -12,21 +12,24 @@ class SchemaValidation:
     valid: bool
     missing: list[str]
     extra: list[str]
+    forbidden: list[str] = field(default_factory=list)
 
 
 @dataclass
 class IncSchema:
     must: dict[str, str]
     maybe: dict[str, str]
+    must_not: dict[str, str] = field(default_factory=dict)
     allow_extra: bool = True
     description: dict[str, str] = field(default_factory=dict)
 
 
-# Section name aliases match Julia's getsection() — case-insensitive on both sides.
-_MUST_ALIASES    = frozenset({"must", "required"})
-_MAYBE_ALIASES   = frozenset({"maybe", "optional"})
-_SCHEMA_ALIASES  = frozenset({"schema", "options"})
-_DESC_ALIASES    = frozenset({"description", "descriptions", "describe"})
+# Section name aliases — case-insensitive, matching Julia's getsection().
+_MUST_ALIASES     = frozenset({"must", "required", "shall"})
+_MAYBE_ALIASES    = frozenset({"maybe", "optional", "may"})
+_MUST_NOT_ALIASES = frozenset({"must_not", "shall_not"})
+_SCHEMA_ALIASES   = frozenset({"schema", "options"})
+_DESC_ALIASES     = frozenset({"description", "descriptions", "describe"})
 
 # Values that mean False for allow_extra — matches Julia's parse_schema_bool.
 _FALSY_ALLOW_EXTRA = frozenset({"false", "0", "no", "deny", "closed"})
@@ -40,6 +43,27 @@ def _get_section(meta: MetadataDict, aliases: frozenset[str]) -> dict:
     return {}
 
 
+def _has_path(metadata: MetadataDict, path: str) -> bool:
+    """Return True if path (top-level key or section.child) exists in metadata."""
+    if '.' in path:
+        section, key = path.split('.', 1)
+        val = metadata.get(section)
+        return isinstance(val, dict) and key in val
+    return path in metadata
+
+
+def _file_paths(metadata: MetadataDict) -> set[str]:
+    """Return all leaf paths: top-level scalars and section.child dotted paths."""
+    paths: set[str] = set()
+    for k, v in metadata.items():
+        if isinstance(v, dict):
+            for ck in v:
+                paths.add(f"{k}.{ck}")
+        else:
+            paths.add(k)
+    return paths
+
+
 def read_schema(path: str) -> IncSchema:
     """Read a schema definition from an INC file."""
     inc = read_inc(path)
@@ -51,25 +75,51 @@ def read_schema(path: str) -> IncSchema:
 
     must        = {k: str(v) for k, v in _get_section(meta, _MUST_ALIASES).items()}
     maybe       = {k: str(v) for k, v in _get_section(meta, _MAYBE_ALIASES).items()}
+    must_not    = {k: str(v) for k, v in _get_section(meta, _MUST_NOT_ALIASES).items()}
     description = {k: str(v) for k, v in _get_section(meta, _DESC_ALIASES).items()}
 
-    return IncSchema(must=must, maybe=maybe, allow_extra=allow_extra, description=description)
+    # Validate: no deep paths (only `name` or `section.name` allowed)
+    all_entries: list[tuple[str, str]] = [
+        *((p, "MUST") for p in must),
+        *((p, "MAYBE") for p in maybe),
+        *((p, "MUST_NOT") for p in must_not),
+    ]
+    for path_str, req_class in all_entries:
+        if path_str.count('.') > 1:
+            raise ValueError(
+                f"Schema path {path_str!r} in [{req_class}] has more than one level "
+                f"of nesting; only top-level names or 'section.key' paths are allowed."
+            )
+
+    # Validate: no duplicate paths across requirement classes
+    seen: dict[str, str] = {}
+    for path_str, req_class in all_entries:
+        if path_str in seen:
+            raise ValueError(
+                f"Schema path {path_str!r} is declared in both "
+                f"[{seen[path_str]}] and [{req_class}]; each path may appear in at most one class."
+            )
+        seen[path_str] = req_class
+
+    return IncSchema(
+        must=must, maybe=maybe, must_not=must_not,
+        allow_extra=allow_extra, description=description,
+    )
 
 
 def validate_schema(file: IncFile, schema: IncSchema) -> SchemaValidation:
     """
-    Validate an IncFile's global metadata keys against a schema.
+    Validate an IncFile's metadata against a schema.
 
-    Only top-level scalar keys (not section dicts) are compared to the schema.
+    Checks both top-level scalar keys and section.child dotted paths.
+    Section names themselves are never reported as extra — only their dotted children are.
     """
-    file_keys: set[str] = {
-        k for k, v in file.metadata.items() if not isinstance(v, dict)
-    }
-    schema_keys = set(schema.must) | set(schema.maybe)
+    paths = _file_paths(file.metadata)
+    schema_paths = set(schema.must) | set(schema.maybe) | set(schema.must_not)
 
-    missing = [k for k in schema.must if k not in file_keys]
-    extra = [k for k in sorted(file_keys) if k not in schema_keys]
+    missing  = [p for p in sorted(schema.must)     if not _has_path(file.metadata, p)]
+    forbidden = [p for p in sorted(schema.must_not) if     _has_path(file.metadata, p)]
+    extra    = [p for p in sorted(paths)            if p not in schema_paths]
 
-    valid = not missing and (schema.allow_extra or not extra)
-
-    return SchemaValidation(valid=valid, missing=missing, extra=extra)
+    valid = not missing and not forbidden and (schema.allow_extra or not extra)
+    return SchemaValidation(valid=valid, missing=missing, extra=extra, forbidden=forbidden)
