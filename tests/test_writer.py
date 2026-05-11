@@ -118,6 +118,7 @@ def test_write_ragged_rows_raises(tmp_path):
     with pytest.raises(ValueError, match="Row 1"):
         write_inc(path, rows)
 
+
 def test_write_scalars_before_sections(tmp_path):
     path = str(tmp_path / "out.inc")
     write_inc(path, [], metadata={"columns": {"a": "1"}, "title": "Test"})
@@ -140,4 +141,4 @@ def test_write_section_keys_sorted(tmp_path):
     path = str(tmp_path / "out.inc")
     write_inc(path, [], metadata={"cols": {"z": "last", "a": "first"}})
     content = (tmp_path / "out.inc").read_text()
-    assert content.index("a = ") < content.index("z = ")
+    assert content.index("a = first") < content.index("z = last")
