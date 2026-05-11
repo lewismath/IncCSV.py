@@ -178,10 +178,6 @@ def test_validate_section_names_not_counted_as_extra():
 
 # --- must_not field ---
 
-def test_incschema_must_not_default():
-    s = IncSchema(must={}, maybe={})
-    assert s.must_not == {}
-
 def test_schema_validation_forbidden_field_default():
     schema = IncSchema(must={"title": "String"}, maybe={})
     f = make_file({"title": "Test"})

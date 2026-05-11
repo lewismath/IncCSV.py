@@ -44,7 +44,6 @@ def _get_section(meta: MetadataDict, aliases: frozenset[str]) -> dict:
 
 
 def _has_path(metadata: MetadataDict, path: str) -> bool:
-    """Return True if path (top-level key or section.child) exists in metadata."""
     if '.' in path:
         section, key = path.split('.', 1)
         val = metadata.get(section)
@@ -53,7 +52,6 @@ def _has_path(metadata: MetadataDict, path: str) -> bool:
 
 
 def _file_paths(metadata: MetadataDict) -> set[str]:
-    """Return all leaf paths: top-level scalars and section.child dotted paths."""
     paths: set[str] = set()
     for k, v in metadata.items():
         if isinstance(v, dict):
@@ -78,22 +76,18 @@ def read_schema(path: str) -> IncSchema:
     must_not    = {k: str(v) for k, v in _get_section(meta, _MUST_NOT_ALIASES).items()}
     description = {k: str(v) for k, v in _get_section(meta, _DESC_ALIASES).items()}
 
-    # Validate: no deep paths (only `name` or `section.name` allowed)
-    all_entries: list[tuple[str, str]] = [
-        *((p, "MUST") for p in must),
-        *((p, "MAYBE") for p in maybe),
-        *((p, "MUST_NOT") for p in must_not),
-    ]
+    all_entries = (
+        [(p, "MUST") for p in must]
+        + [(p, "MAYBE") for p in maybe]
+        + [(p, "MUST_NOT") for p in must_not]
+    )
+    seen: dict[str, str] = {}
     for path_str, req_class in all_entries:
         if path_str.count('.') > 1:
             raise ValueError(
                 f"Schema path {path_str!r} in [{req_class}] has more than one level "
                 f"of nesting; only top-level names or 'section.key' paths are allowed."
             )
-
-    # Validate: no duplicate paths across requirement classes
-    seen: dict[str, str] = {}
-    for path_str, req_class in all_entries:
         if path_str in seen:
             raise ValueError(
                 f"Schema path {path_str!r} is declared in both "
