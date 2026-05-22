@@ -145,17 +145,20 @@ def test_write_section_keys_sorted(tmp_path):
 
 
 def test_write_invalid_top_level_key_raises():
-    with pytest.raises(ValueError, match="[Ii]nvalid"):
+    with pytest.raises(ValueError, match=r"[Ii]nvalid.*'bad key'"):
         write_inc("/dev/null", [], metadata={"bad key": "v"})
 
+
 def test_write_invalid_section_name_raises():
-    with pytest.raises(ValueError, match="[Ii]nvalid"):
+    with pytest.raises(ValueError, match=r"[Ii]nvalid.*'bad section'"):
         write_inc("/dev/null", [], metadata={"bad section": {"k": "v"}})
 
+
 def test_write_invalid_section_key_raises():
-    with pytest.raises(ValueError, match="[Ii]nvalid"):
+    with pytest.raises(ValueError, match=r"[Ii]nvalid.*'bad key'"):
         write_inc("/dev/null", [], metadata={"section": {"bad key": "v"}})
 
+
 def test_write_empty_key_name_raises():
-    with pytest.raises(ValueError, match="[Ii]nvalid"):
+    with pytest.raises(ValueError, match=r"[Ii]nvalid.*''"):
         write_inc("/dev/null", [], metadata={"": "v"})
