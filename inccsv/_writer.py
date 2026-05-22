@@ -5,7 +5,7 @@ import csv
 import re
 from typing import Any
 
-from ._parser import MetadataDict
+from ._parser import MetadataDict, _INVALID_NAME_RE
 
 _INT_PATTERN = re.compile(r'^[+-]?\d+$')
 # Characters that Julia's escape_value also quotes; quoting these prevents
@@ -55,22 +55,30 @@ def _validate_and_format(value: Any, context: str) -> str:
     return _format_value(value)
 
 
+def _validate_name(name: str, context: str) -> None:
+    if not name or _INVALID_NAME_RE.search(name):
+        raise ValueError(f"Invalid metadata name {name!r} in {context}")
+
+
 def _metadata_to_lines(metadata: MetadataDict) -> list[str]:
     """Serialise a metadata dict to INI lines (without delimiters)."""
     lines: list[str] = []
 
     scalar_keys = sorted(key for key, value in metadata.items() if not isinstance(value, dict))
     for key in scalar_keys:
+        _validate_name(key, "top-level key")
         value = metadata[key]
         lines.append(f"{key} = {_validate_and_format(value, repr(key))}")
 
     section_keys = sorted(key for key, value in metadata.items() if isinstance(value, dict))
     for section in section_keys:
+        _validate_name(section, "section name")
         content = metadata[section]
         if not content:
             raise ValueError(f"Section [{section}] is empty (no properties defined)")
         lines.append(f"[{section}]")
         for key in sorted(content):
+            _validate_name(key, f"[{section}] key")
             value = content[key]
             lines.append(
                 f"{key} = {_validate_and_format(value, f'[{section}].{key!r}')}"
@@ -95,7 +103,7 @@ def write_inc(
         **csv_kwargs: Forwarded to csv.DictWriter (e.g., delimiter=';').
 
     Raises:
-        ValueError: if metadata contains invalid values or empty sections.
+        ValueError: if metadata contains invalid names, values, or empty sections.
     """
     if metadata is None:
         metadata = {}
