@@ -35,12 +35,13 @@ _DESC_ALIASES     = frozenset({"description", "descriptions", "describe"})
 _FALSY_ALLOW_EXTRA = frozenset({"false", "0", "no", "deny", "closed"})
 
 
-def _get_section(meta: MetadataDict, aliases: frozenset[str]) -> dict:
-    """Return the first section whose lowercased name is in aliases, or {}."""
+def _merge_sections(meta: MetadataDict, aliases: frozenset[str]) -> dict:
+    """Merge all sections whose lowercased name is in aliases into one dict."""
+    merged: dict = {}
     for key, value in meta.items():
         if key.lower() in aliases and isinstance(value, dict):
-            return value
-    return {}
+            merged.update(value)
+    return merged
 
 
 def _has_path(metadata: MetadataDict, path: str) -> bool:
@@ -67,14 +68,14 @@ def read_schema(path: str) -> IncSchema:
     inc = read_inc(path)
     meta = inc.metadata
 
-    schema_section = _get_section(meta, _SCHEMA_ALIASES)
+    schema_section = _merge_sections(meta, _SCHEMA_ALIASES)
     ae_raw = schema_section.get("allow_extra", "true")
     allow_extra = str(ae_raw).lower() not in _FALSY_ALLOW_EXTRA
 
-    must        = {k: str(v) for k, v in _get_section(meta, _MUST_ALIASES).items()}
-    maybe       = {k: str(v) for k, v in _get_section(meta, _MAYBE_ALIASES).items()}
-    must_not    = {k: str(v) for k, v in _get_section(meta, _MUST_NOT_ALIASES).items()}
-    description = {k: str(v) for k, v in _get_section(meta, _DESC_ALIASES).items()}
+    must        = {k: str(v) for k, v in _merge_sections(meta, _MUST_ALIASES).items()}
+    maybe       = {k: str(v) for k, v in _merge_sections(meta, _MAYBE_ALIASES).items()}
+    must_not    = {k: str(v) for k, v in _merge_sections(meta, _MUST_NOT_ALIASES).items()}
+    description = {k: str(v) for k, v in _merge_sections(meta, _DESC_ALIASES).items()}
 
     all_entries = (
         [(p, "MUST") for p in must]

@@ -301,3 +301,24 @@ def test_read_schema_top_level_path_valid(tmp_path):
     path = make_schema_file(tmp_path, content)
     schema = read_schema(path)
     assert schema.must == {"title": "String"}
+
+
+# --- alias section merging ---
+
+def test_read_schema_merges_must_and_required(tmp_path):
+    content = "---\n[MUST]\ntitle = String\n[REQUIRED]\nversion = Int\n---\n"
+    path = make_schema_file(tmp_path, content)
+    schema = read_schema(path)
+    assert schema.must == {"title": "String", "version": "Int"}
+
+def test_read_schema_merges_maybe_and_optional(tmp_path):
+    content = "---\n[MAYBE]\ntitle = String\n[OPTIONAL]\nversion = Int\n---\n"
+    path = make_schema_file(tmp_path, content)
+    schema = read_schema(path)
+    assert schema.maybe == {"title": "String", "version": "Int"}
+
+def test_read_schema_duplicate_path_via_alias_raises(tmp_path):
+    content = "---\n[MUST]\ntitle = String\n[MAY]\ntitle = String\n---\n"
+    path = make_schema_file(tmp_path, content)
+    with pytest.raises(ValueError, match="declared in both"):
+        read_schema(path)
