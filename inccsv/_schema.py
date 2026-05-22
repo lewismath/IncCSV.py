@@ -40,6 +40,12 @@ def _merge_sections(meta: MetadataDict, aliases: frozenset[str]) -> dict:
     merged: dict = {}
     for key, value in meta.items():
         if key.lower() in aliases and isinstance(value, dict):
+            overlap = set(value) & set(merged)
+            if overlap:
+                raise ValueError(
+                    f"Schema path(s) {sorted(overlap)} appear in multiple "
+                    f"[{key}]-aliased sections; each path may appear only once."
+                )
             merged.update(value)
     return merged
 

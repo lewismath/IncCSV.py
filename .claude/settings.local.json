@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(pip install *)",
+      "Bash(python *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git rm *)",
+      "Bash(grep -E '\\\\.\\(pyc|pyo\\)$')",
+      "Bash(pytest *)",
+      "Bash(python3 *)",
+      "Bash(git -C /Users/lewis_math/Library/CloudStorage/Box-Box/work/IncCSV.py add inccsv/_writer.py tests/test_writer.py)",
+      "Bash(git -C /Users/lewis_math/Library/CloudStorage/Box-Box/work/IncCSV.py commit -m ' *)",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(gh auth *)",
+      "Bash(gh repo *)",
+      "Bash(curl -sSL https://raw.githubusercontent.com/mroughan/IncCSV.jl/main/src/IncCSV.jl -o /tmp/IncCSV.jl)",
+      "Read(//tmp/**)",
+      "Bash(curl -sL https://raw.githubusercontent.com/mroughan/IncCSV.jl/main/src/IncCSV.jl -o /tmp/IncCSV.jl)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -sL https://api.github.com/repos/mroughan/IncCSV.jl/contents/artifacts/examples)",
+      "Bash(curl -sL https://raw.githubusercontent.com/mroughan/IncCSV.jl/main/artifacts/examples/demo.inc -o /tmp/demo.inc)",
+      "Bash(curl -sL https://raw.githubusercontent.com/mroughan/IncCSV.jl/main/artifacts/examples/dataframe.inc -o /tmp/dataframe.inc)",
+      "Bash(curl -sL https://raw.githubusercontent.com/mroughan/IncCSV.jl/main/artifacts/examples/commented.inc -o /tmp/commented.inc)",
+      "Bash(awk -F: '$1 > 620')",
+      "Bash(awk -F: '$1 > 550')",
+      "Bash(git -C /Users/lewis_math/Library/CloudStorage/Box-Box/work/IncCSV.py status)",
+      "Bash(git -C /Users/lewis_math/Library/CloudStorage/Box-Box/work/IncCSV.py diff --stat)",
+      "Bash(git push *)",
+      "Bash(gh api *)",
+      "Skill(superpowers:subagent-driven-development)"
+    ]
+  }
+}
