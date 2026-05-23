@@ -46,11 +46,13 @@ class IncFile:
         return pd.DataFrame(self.rows)
 
 
-def _csv_kwargs_from_metadata(metadata: MetadataDict) -> tuple[dict[str, Any], str | None]:
-    """Extract csv.DictReader kwargs and comment char from [structure] metadata section."""
+def _csv_kwargs_from_metadata(metadata: MetadataDict) -> tuple[dict[str, Any], str | None, int, int]:
+    """Extract csv.DictReader kwargs, comment char, header line, and footerskip from [structure]."""
     structure = metadata.get("structure", {})
     kwargs: dict[str, Any] = {}
     comment_char: str | None = None
+    header: int = 1
+    footerskip: int = 0
     if isinstance(structure, dict):
         for key in structure:
             if key not in _STRUCTURE_ALLOWED_KEYS:
@@ -78,13 +80,15 @@ def _csv_kwargs_from_metadata(metadata: MetadataDict) -> tuple[dict[str, Any], s
                 raise ValueError(
                     f"[structure].header must be an integer, got {val!r}"
                 )
+            header = val
         if "footerskip" in structure:
             val = structure["footerskip"]
             if not isinstance(val, int):
                 raise ValueError(
                     f"[structure].footerskip must be an integer, got {val!r}"
                 )
-    return kwargs, comment_char
+            footerskip = val
+    return kwargs, comment_char, header, footerskip
 
 
 def read_inc(path: str, **csv_kwargs: Any) -> IncFile:
@@ -102,7 +106,7 @@ def read_inc(path: str, **csv_kwargs: Any) -> IncFile:
     meta_lines, csv_start = split_inc(path)
     metadata: MetadataDict = parse_metadata(meta_lines) if meta_lines else {}
 
-    base_kwargs, comment_char = _csv_kwargs_from_metadata(metadata)
+    base_kwargs, comment_char, header, footerskip = _csv_kwargs_from_metadata(metadata)
 
     if "comment" in csv_kwargs:
         comment_char = str(csv_kwargs.pop("comment"))
@@ -113,11 +117,15 @@ def read_inc(path: str, **csv_kwargs: Any) -> IncFile:
         all_lines = f.readlines()
 
     csv_lines = all_lines[csv_start - 1:]
+    csv_lines = csv_lines[max(0, header - 1):]  # discard lines before header (header is 1-based)
 
     if comment_char:
         csv_lines = [ln for ln in csv_lines if not ln.lstrip().startswith(comment_char)]
 
     reader = csv.DictReader(io.StringIO("".join(csv_lines)), **base_kwargs)
     rows = [dict(row) for row in reader]
+
+    if footerskip > 0:
+        rows = rows[:-footerskip]
 
     return IncFile(metadata=metadata, rows=rows, path=path)

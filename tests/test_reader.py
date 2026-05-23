@@ -193,3 +193,34 @@ def test_read_inc_comment_multi_char_raises(tmp_path):
     path = write_file(tmp_path, "data.inc", content)
     with pytest.raises(ValueError, match="single character"):
         read_inc(path)
+
+
+def test_read_inc_header_2_skips_first_line(tmp_path):
+    content = (
+        "---\n[structure]\nheader = 2\n---\n"
+        "discard,discard\nname,score\nAda,21\n"
+    )
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [{"name": "Ada", "score": "21"}]
+
+def test_read_inc_footerskip_1_drops_last_row(tmp_path):
+    content = (
+        "---\n[structure]\nfooterskip = 1\n---\n"
+        "name,score\nAda,21\nTOTAL,33\n"
+    )
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [{"name": "Ada", "score": "21"}]
+
+def test_read_inc_header_and_footerskip_combined(tmp_path):
+    content = (
+        "---\n[structure]\nheader = 2\nfooterskip = 1\n---\n"
+        "discard,discard\nname,score\nAda,21\nBabbage,12\nTOTAL,33\n"
+    )
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [
+        {"name": "Ada", "score": "21"},
+        {"name": "Babbage", "score": "12"},
+    ]
