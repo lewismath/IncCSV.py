@@ -8,21 +8,13 @@ from typing import Any
 
 from ._parser import split_inc, parse_metadata, MetadataDict
 
-# Keyword aliases for single-character [structure] values (Julia idiom).
+# Keyword aliases for single-character [structure] values.
 _CHAR_ALIASES: dict[str, str] = {"tab": "\t", "space": " "}
 
-# [structure] keys Python can map to csv.DictReader kwargs.
-_STRUCTURE_HONOURED_KEYS = frozenset({"delimiter", "delim", "quotechar", "escapechar", "comment"})
-
-# Julia [structure] keys that have no csv.DictReader equivalent; recognised
-# so they don't raise, but not applied to the reader.
-_STRUCTURE_JULIA_ONLY_KEYS = frozenset({
-    "decimal", "groupmark", "missingstring", "dateformat",
-    "ignoreemptyrows", "ignorerepeated", "normalizenames",
-    "header", "skipto", "footerskip", "limit",
+# Canonical [structure] key allowlist — spec structure.md.
+_STRUCTURE_ALLOWED_KEYS = frozenset({
+    "delim", "delimiter", "quotechar", "escapechar", "comment", "header", "footerskip"
 })
-
-_STRUCTURE_KNOWN_KEYS = _STRUCTURE_HONOURED_KEYS | _STRUCTURE_JULIA_ONLY_KEYS
 
 
 def _coerce_char(value: int | str) -> str:
@@ -56,10 +48,10 @@ def _csv_kwargs_from_metadata(metadata: MetadataDict) -> tuple[dict[str, Any], s
     comment_char: str | None = None
     if isinstance(structure, dict):
         for key in structure:
-            if key not in _STRUCTURE_KNOWN_KEYS:
+            if key not in _STRUCTURE_ALLOWED_KEYS:
                 raise ValueError(
                     f"[structure] contains unknown key {key!r}. "
-                    f"Known keys: {sorted(_STRUCTURE_KNOWN_KEYS)}"
+                    f"Allowed keys: {sorted(_STRUCTURE_ALLOWED_KEYS)}"
                 )
         delim_value = structure.get("delimiter") if "delimiter" in structure else structure.get("delim")
         if delim_value is not None:
@@ -70,8 +62,6 @@ def _csv_kwargs_from_metadata(metadata: MetadataDict) -> tuple[dict[str, Any], s
             kwargs["escapechar"] = _coerce_char(structure["escapechar"])
         if "comment" in structure:
             comment_char = str(structure["comment"])
-        # _STRUCTURE_JULIA_ONLY_KEYS are recognised but not honoured by
-        # Python's csv.DictReader; accepted silently for cross-language compatibility.
     return kwargs, comment_char
 
 

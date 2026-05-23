@@ -113,12 +113,11 @@ def test_read_inc_unknown_structure_key_raises(tmp_path):
     with pytest.raises(ValueError, match="unknown key"):
         read_inc(path)
 
-def test_read_inc_julia_only_structure_key_accepted(tmp_path):
-    # Julia-only keys (e.g. missingstring) are silently accepted, not applied
+def test_read_inc_julia_only_structure_key_raises(tmp_path):
     content = "---\n[structure]\nmissingstring = NA\n---\nname,score\nAda,10\n"
     path = write_file(tmp_path, "data.inc", content)
-    result = read_inc(path)
-    assert result.rows == [{"name": "Ada", "score": "10"}]
+    with pytest.raises(ValueError, match="unknown key"):
+        read_inc(path)
 
 def test_read_inc_caller_kwargs_override_structure(tmp_path):
     content = "---\n[structure]\ndelimiter = ;\n---\nname|score\nAda|10\n"
@@ -142,6 +141,20 @@ def test_read_inc_caller_comment_kwarg(tmp_path):
 
 
 # --- unicode ---
+
+def test_read_inc_skipto_structure_key_raises(tmp_path):
+    content = "---\n[structure]\nskipto = 2\n---\nname,score\nAda,10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    with pytest.raises(ValueError, match="unknown key"):
+        read_inc(path)
+
+
+def test_read_inc_limit_structure_key_raises(tmp_path):
+    content = "---\n[structure]\nlimit = 100\n---\nname,score\nAda,10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    with pytest.raises(ValueError, match="unknown key"):
+        read_inc(path)
+
 
 def test_read_inc_unicode_metadata(tmp_path):
     content = "---\ntitle = Données\n---\nnom,valeur\nAlice,42\n"
