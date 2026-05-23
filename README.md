@@ -84,7 +84,7 @@ allow_extra = false
 title = String
 version = Int
 
-[MAYBE]
+[OPTIONAL]
 author = String
 ---
 ```

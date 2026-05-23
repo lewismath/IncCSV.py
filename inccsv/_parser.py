@@ -92,8 +92,10 @@ def split_inc(path: str) -> tuple[list[str], int]:
             meta_lines = [ln.rstrip('\n\r') for ln in lines[1:i]]
             return meta_lines, i + 2
 
+    last_line = lines[-1].rstrip('\n\r') if len(lines) > 1 else ''
     raise ValueError(
-        f"Opening delimiter found in '{path}' but closing delimiter is missing."
+        f"Opening delimiter found in '{path}' but closing delimiter is missing "
+        f"(last metadata line: {last_line!r})."
     )
 
 

@@ -191,3 +191,10 @@ def test_parse_metadata_bare_comment_char_with_trailing_comment():
     """Bare ; or # as value should still have trailing comments stripped."""
     result = parse_metadata(["delimiter = ; # real comment"])
     assert result == {"delimiter": ";"}
+
+
+def test_split_inc_missing_delimiter_error_includes_last_line(tmp_path):
+    f = tmp_path / "bad.inc"
+    f.write_text("---\ntitle = Missing closer\nname,score\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="last metadata line"):
+        split_inc(str(f))
