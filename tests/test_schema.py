@@ -331,3 +331,18 @@ def test_read_schema_duplicate_path_within_alias_group_raises(tmp_path):
     path = make_schema_file(tmp_path, content)
     with pytest.raises(ValueError, match="appear in multiple"):
         read_schema(path)
+
+
+# --- path component validation ---
+
+def test_read_schema_trailing_dot_path_raises(tmp_path):
+    content = "---\n[MUST]\na. = String\n---\n"
+    path = make_schema_file(tmp_path, content)
+    with pytest.raises(ValueError, match="empty name component"):
+        read_schema(path)
+
+def test_read_schema_leading_dot_path_raises(tmp_path):
+    content = "---\n[MUST]\n.key = String\n---\n"
+    path = make_schema_file(tmp_path, content)
+    with pytest.raises(ValueError, match="empty name component"):
+        read_schema(path)

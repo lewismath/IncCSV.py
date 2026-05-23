@@ -95,6 +95,12 @@ def read_schema(path: str) -> IncSchema:
                 f"Schema path {path_str!r} in [{req_class}] has more than one level "
                 f"of nesting; only top-level names or 'section.key' paths are allowed."
             )
+        parts = path_str.split('.') if '.' in path_str else [path_str]
+        for part in parts:
+            if not part:
+                raise ValueError(
+                    f"Schema path {path_str!r} in [{req_class}] contains an empty name component"
+                )
         if path_str in seen:
             raise ValueError(
                 f"Schema path {path_str!r} is declared in both "
