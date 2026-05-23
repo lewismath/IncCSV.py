@@ -9,7 +9,7 @@ from typing import Any
 from ._parser import split_inc, parse_metadata, MetadataDict
 
 # Keyword aliases for single-character [structure] values.
-_CHAR_ALIASES: dict[str, str] = {"tab": "\t", "space": " "}
+_CHAR_ALIASES: dict[str, str] = {"tab": "\t", "\\t": "\t", "space": " "}
 
 # Canonical [structure] key allowlist — spec structure.md.
 _STRUCTURE_ALLOWED_KEYS = frozenset({
@@ -21,7 +21,12 @@ def _coerce_char(value: int | str) -> str:
     """Translate a [structure] char value: keyword alias or int code point → str."""
     if isinstance(value, int):
         return chr(value)
-    return _CHAR_ALIASES.get(str(value).lower(), str(value))
+    s = _CHAR_ALIASES.get(str(value).lower(), str(value))
+    if len(s) != 1:
+        raise ValueError(
+            f"[structure] character value must resolve to a single character, got {value!r}"
+        )
+    return s
 
 
 @dataclass
@@ -61,7 +66,24 @@ def _csv_kwargs_from_metadata(metadata: MetadataDict) -> tuple[dict[str, Any], s
         if "escapechar" in structure:
             kwargs["escapechar"] = _coerce_char(structure["escapechar"])
         if "comment" in structure:
-            comment_char = str(structure["comment"])
+            comment_raw = structure["comment"]
+            if not isinstance(comment_raw, str):
+                raise ValueError(
+                    f"[structure].comment must be a string, got {comment_raw!r}"
+                )
+            comment_char = comment_raw
+        if "header" in structure:
+            val = structure["header"]
+            if not isinstance(val, int):
+                raise ValueError(
+                    f"[structure].header must be an integer, got {val!r}"
+                )
+        if "footerskip" in structure:
+            val = structure["footerskip"]
+            if not isinstance(val, int):
+                raise ValueError(
+                    f"[structure].footerskip must be an integer, got {val!r}"
+                )
     return kwargs, comment_char
 
 

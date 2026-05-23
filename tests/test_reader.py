@@ -161,3 +161,29 @@ def test_read_inc_unicode_metadata(tmp_path):
     path = write_file(tmp_path, "unicode.inc", content)
     result = read_inc(path)
     assert result.metadata["title"] == "Données"
+
+
+def test_read_inc_backslash_t_tab_alias(tmp_path):
+    # The literal two-character string \t in the file (backslash then t)
+    content = "---\n[structure]\ndelim = \\t\n---\nname\tscore\nAda\t10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    result = read_inc(path)
+    assert result.rows == [{"name": "Ada", "score": "10"}]
+
+def test_read_inc_invalid_char_value_raises(tmp_path):
+    content = "---\n[structure]\ndelim = comma\n---\nname,score\nAda,10\n"
+    path = write_file(tmp_path, "data.inc", content)
+    with pytest.raises(ValueError, match="single character"):
+        read_inc(path)
+
+def test_read_inc_header_non_integer_raises(tmp_path):
+    content = '---\n[structure]\nheader = "2"\n---\nname,score\nAda,10\n'
+    path = write_file(tmp_path, "data.inc", content)
+    with pytest.raises(ValueError, match="header.*integer"):
+        read_inc(path)
+
+def test_read_inc_footerskip_non_integer_raises(tmp_path):
+    content = '---\n[structure]\nfooterskip = "1"\n---\nname,score\nAda,10\n'
+    path = write_file(tmp_path, "data.inc", content)
+    with pytest.raises(ValueError, match="footerskip.*integer"):
+        read_inc(path)
