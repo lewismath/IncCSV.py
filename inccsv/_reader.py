@@ -67,9 +67,9 @@ def _csv_kwargs_from_metadata(metadata: MetadataDict) -> tuple[dict[str, Any], s
             kwargs["escapechar"] = _coerce_char(structure["escapechar"])
         if "comment" in structure:
             comment_raw = structure["comment"]
-            if not isinstance(comment_raw, str):
+            if not isinstance(comment_raw, str) or len(comment_raw) != 1:
                 raise ValueError(
-                    f"[structure].comment must be a string, got {comment_raw!r}"
+                    f"[structure].comment must be a single character string, got {comment_raw!r}"
                 )
             comment_char = comment_raw
         if "header" in structure:

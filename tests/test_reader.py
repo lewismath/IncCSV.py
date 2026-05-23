@@ -187,3 +187,9 @@ def test_read_inc_footerskip_non_integer_raises(tmp_path):
     path = write_file(tmp_path, "data.inc", content)
     with pytest.raises(ValueError, match="footerskip.*integer"):
         read_inc(path)
+
+def test_read_inc_comment_multi_char_raises(tmp_path):
+    content = '---\n[structure]\ncomment = "##"\n---\nname,score\nAda,10\n'
+    path = write_file(tmp_path, "data.inc", content)
+    with pytest.raises(ValueError, match="single character"):
+        read_inc(path)
