@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IncCSV.py – Playground</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">IncCSV.py</div>
+    <nav class="nav" aria-label="Documentation">
+      <a href="./index.html">Overview</a>
+      <a href="./playground.html" aria-current="page">Playground</a>
+      <a href="./examples.html">Examples</a>
+      <a href="./schema.html">Schema</a>
+      <a href="./sir.html">SIR Model</a>
+      <a href="./regression.html">Regression</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Parser and writer playground</h1>
+    <p class="lede">
+      Edit the INC text, parse it, inspect the metadata and rows, then write
+      the parsed object back to canonical form.
+      Powered by <a href="https://pyodide.org">Pyodide</a> — real Python in the browser.
+    </p>
+    <div id="py-status" class="pyodide-status">Loading Python runtime…</div>
+    <div class="toolbar">
+      <label for="sample">Sample</label>
+      <select id="sample">
+        <option value="basic">Basic INC</option>
+        <option value="tab">Tab-separated</option>
+        <option value="schema">Schema file</option>
+        <option value="plain">Plain CSV</option>
+      </select>
+      <button id="parse-btn" disabled>Parse</button>
+      <button id="write-btn" class="secondary" disabled>Write canonical</button>
+    </div>
+    <section class="workspace">
+      <div class="panel">
+        <h2>Input</h2>
+        <textarea id="input" spellcheck="false" rows="18"></textarea>
+        <div id="status" class="status" aria-live="polite"></div>
+      </div>
+      <div class="panel">
+        <h2>Metadata</h2>
+        <pre id="meta-out" class="output" style="min-height:130px"></pre>
+        <h2>Rows</h2>
+        <div id="rows-out"></div>
+      </div>
+    </section>
+  </main>
+  <script type="module">
+    import { initPyodide } from './pyodide-init.js';
+
+    const SAMPLES = {
+      basic: `---\ntitle = Sensor readings\nversion = 1\n[columns]\ntime = seconds\ntemperature = Celsius\n---\ntime,temperature\n0,21.4\n1,21.8\n2,22.1\n`,
+      tab:   `---\ntitle = Tab-separated data\n[structure]\ndelim = tab\n---\nname\tscore\nAda\t21\nBabbage\t12\n`,
+      schema:`---\n[schema]\nallow_extra = false\n[MUST]\ntitle = String\n[OPTIONAL]\nversion = Int\n[description]\ntitle = Human-readable title\n---\n`,
+      plain: `name,score\nAda,21\nBabbage,12\n`,
+    };
+
+    const inputEl  = document.getElementById('input');
+    const sampleEl = document.getElementById('sample');
+    const metaEl   = document.getElementById('meta-out');
+    const rowsEl   = document.getElementById('rows-out');
+    const statusEl = document.getElementById('status');
+    const parseBtn = document.getElementById('parse-btn');
+    const writeBtn = document.getElementById('write-btn');
+    const pyEl     = document.getElementById('py-status');
+
+    let py = null;
+
+    function esc(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function renderRows(rows) {
+      if (!rows.length) return '<p style="color:var(--muted);font-size:.9rem">No rows.</p>';
+      const cols = Object.keys(rows[0]);
+      const ths  = cols.map(c => `<th>${esc(c)}</th>`).join('');
+      const trs  = rows.map(r =>
+        `<tr>${cols.map(c => `<td>${esc(r[c] ?? '')}</td>`).join('')}</tr>`
+      ).join('');
+      return `<div class="table-wrap"><table>
+        <thead><tr>${ths}</tr></thead>
+        <tbody>${trs}</tbody>
+      </table></div>`;
+    }
+
+    function setStatus(msg, bad = false) {
+      statusEl.textContent = msg;
+      statusEl.className   = 'status ' + (bad ? 'bad' : 'good');
+    }
+
+    function parse() {
+      if (!py) return;
+      const raw = py.runPython(`parse_text(${JSON.stringify(inputEl.value)})`);
+      const res = JSON.parse(raw);
+      if (res.ok) {
+        metaEl.textContent = JSON.stringify(res.metadata, null, 2);
+        rowsEl.innerHTML   = renderRows(res.rows);
+        setStatus(`Parsed ${res.rows.length} row(s).`);
+      } else {
+        metaEl.textContent = '';
+        rowsEl.innerHTML   = '';
+        setStatus(res.error, true);
+      }
+    }
+
+    function writeCanonical() {
+      if (!py) return;
+      const raw = py.runPython(`write_canonical(${JSON.stringify(inputEl.value)})`);
+      const res = JSON.parse(raw);
+      if (res.ok) {
+        inputEl.value = res.text;
+        parse();
+      } else {
+        setStatus(res.error, true);
+      }
+    }
+
+    function loadSample() {
+      inputEl.value = SAMPLES[sampleEl.value];
+      if (py) parse();
+    }
+
+    initPyodide((msg, isError) => {
+      pyEl.textContent = msg;
+      pyEl.className   = 'pyodide-status' + (isError ? ' error' : '');
+    }).then(pyodide => {
+      py = pyodide;
+      py.runPython(`
+import json, inccsv
+
+def parse_text(text):
+    with open('/tmp/pg.inc', 'w') as f:
+        f.write(text)
+    try:
+        r = inccsv.read_inc('/tmp/pg.inc')
+        return json.dumps({'ok': True, 'metadata': r.metadata, 'rows': r.rows})
+    except Exception as e:
+        return json.dumps({'ok': False, 'error': str(e)})
+
+def write_canonical(text):
+    with open('/tmp/pg.inc', 'w') as f:
+        f.write(text)
+    try:
+        r = inccsv.read_inc('/tmp/pg.inc')
+        inccsv.write_inc('/tmp/pg_out.inc', r.rows, metadata=r.metadata)
+        with open('/tmp/pg_out.inc') as f:
+            return json.dumps({'ok': True, 'text': f.read()})
+    except Exception as e:
+        return json.dumps({'ok': False, 'error': str(e)})
+`);
+      pyEl.textContent = 'Ready';
+      pyEl.className   = 'pyodide-status ready';
+      parseBtn.disabled = false;
+      writeBtn.disabled = false;
+      parse();
+    }).catch(() => {});
+
+    sampleEl.addEventListener('change', loadSample);
+    parseBtn.addEventListener('click', parse);
+    writeBtn.addEventListener('click', writeCanonical);
+    inputEl.addEventListener('input', () => { if (py) parse(); });
+    loadSample();
+  </script>
+</body>
+</html>
