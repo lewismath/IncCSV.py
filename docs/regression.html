@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IncCSV.py – Regression</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">IncCSV.py</div>
+    <nav class="nav" aria-label="Documentation">
+      <a href="./index.html">Overview</a>
+      <a href="./playground.html">Playground</a>
+      <a href="./examples.html">Examples</a>
+      <a href="./schema.html">Schema</a>
+      <a href="./sir.html">SIR Model</a>
+      <a href="./regression.html" aria-current="page">Regression</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Linear regression</h1>
+    <p class="lede">
+      Paste data as an INC file — first column is x, second is y, column names can be anything.
+      The page fits a line and lets you download the annotated file with
+      slope, intercept, and R² stored as metadata alongside your original data.
+      This demonstrates how INC lets derived results travel with the source data.
+    </p>
+
+    <div id="py-status" class="pyodide-status">Loading Python runtime…</div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h2>Data (INC format)</h2>
+        <textarea id="input" spellcheck="false">---
+title = Speed of light measurements
+source = Michelson 1879
+[columns]
+trial = measurement number
+speed_kms = measured speed (km/s)
+---
+trial,speed_kms
+1,299850
+2,299740
+3,299900
+4,299930
+5,299880
+6,299760
+7,299910
+8,299820
+9,299870
+10,299850
+</textarea>
+        <div class="toolbar" style="margin-top:10px">
+          <button id="fit-btn" disabled>Fit line</button>
+        </div>
+        <div id="status" class="status" aria-live="polite"></div>
+      </div>
+      <div>
+        <div class="chart-wrap">
+          <canvas id="chart"></canvas>
+        </div>
+        <div class="result-box" id="result-box" style="display:none">
+          <div>
+            <div class="result-label">Slope (m)</div>
+            <div class="result-value" id="stat-slope"></div>
+          </div>
+          <div>
+            <div class="result-label">Intercept (b)</div>
+            <div class="result-value" id="stat-intercept"></div>
+          </div>
+          <div>
+            <div class="result-label">R²</div>
+            <div class="result-value" id="stat-r2"></div>
+          </div>
+        </div>
+        <button id="dl-btn" class="secondary" disabled>Download annotated INC</button>
+      </div>
+    </div>
+  </main>
+  <script type="module">
+    import { initPyodide } from './pyodide-init.js';
+
+    const pyEl    = document.getElementById('py-status');
+    const inputEl = document.getElementById('input');
+    const fitBtn  = document.getElementById('fit-btn');
+    const dlBtn   = document.getElementById('dl-btn');
+    const statusEl= document.getElementById('status');
+    const resultBox = document.getElementById('result-box');
+    const canvas  = document.getElementById('chart');
+
+    let py = null, chart = null, lastFit = null;
+
+    function setStatus(msg, bad = false) {
+      statusEl.textContent = msg;
+      statusEl.className   = 'status ' + (bad ? 'bad' : 'good');
+    }
+
+    function drawChart(xs, ys, xcol, ycol, slope, intercept) {
+      const pts  = xs.map((x, i) => ({ x, y: ys[i] }));
+      const xMin = Math.min(...xs), xMax = Math.max(...xs);
+      const line = [{ x: xMin, y: slope * xMin + intercept },
+                    { x: xMax, y: slope * xMax + intercept }];
+      if (chart) chart.destroy();
+      chart = new Chart(canvas, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            { label: ycol + ' vs ' + xcol, data: pts,
+              backgroundColor: '#326a9b', pointRadius: 5 },
+            { label: `y = ${slope.toFixed(3)}x + ${intercept.toFixed(3)}`,
+              data: line, type: 'line',
+              borderColor: '#aa3f3f', backgroundColor: 'transparent',
+              pointRadius: 0, borderWidth: 2 },
+          ],
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            x: { type: 'linear', title: { display: true, text: xcol } },
+            y: { title: { display: true, text: ycol } },
+          },
+        },
+      });
+    }
+
+    async function fit() {
+      if (!py) return;
+      const raw = await py.runPythonAsync(`fit_regression(${JSON.stringify(inputEl.value)})`);
+      const res = JSON.parse(raw);
+      if (!res.ok) {
+        setStatus(res.error, true);
+        resultBox.style.display = 'none';
+        dlBtn.disabled = true;
+        if (chart) { chart.destroy(); chart = null; }
+        return;
+      }
+      lastFit = res;
+      drawChart(res.xs, res.ys, res.xcol, res.ycol, res.slope, res.intercept);
+      document.getElementById('stat-slope').textContent     = res.slope.toFixed(5);
+      document.getElementById('stat-intercept').textContent = res.intercept.toFixed(5);
+      document.getElementById('stat-r2').textContent        = res.r2.toFixed(5);
+      resultBox.style.display = 'grid';
+      dlBtn.disabled = false;
+      setStatus(`Fitted ${res.xs.length} point(s).`);
+    }
+
+    async function download() {
+      if (!py || !lastFit) return;
+      const raw = await py.runPythonAsync(
+        `annotated_inc(${JSON.stringify(inputEl.value)}, ${lastFit.slope}, ${lastFit.intercept}, ${lastFit.r2})`
+      );
+      const res = JSON.parse(raw);
+      if (!res.ok) { setStatus(res.error, true); return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([res.text], { type: 'text/plain' }));
+      a.download = 'regression.inc';
+      a.click();
+    }
+
+    fitBtn.addEventListener('click', fit);
+    dlBtn.addEventListener('click', download);
+    inputEl.addEventListener('input', () => { if (py) fit(); });
+
+    initPyodide((msg, isError) => {
+      pyEl.textContent = msg;
+      pyEl.className   = 'pyodide-status' + (isError ? ' error' : '');
+    }).then(pyodide => {
+      py = pyodide;
+      py.runPython(`
+import json, inccsv
+
+def fit_regression(text):
+    try:
+        with open('/tmp/reg.inc', 'w') as f:
+            f.write(text)
+        r = inccsv.read_inc('/tmp/reg.inc')
+        if not r.rows:
+            return json.dumps({'ok': False, 'error': 'No data rows found.'})
+        cols = list(r.rows[0].keys())
+        if len(cols) < 2:
+            return json.dumps({'ok': False, 'error': 'Need at least two columns.'})
+        xcol, ycol = cols[0], cols[1]
+        xs = [float(row[xcol]) for row in r.rows]
+        ys = [float(row[ycol]) for row in r.rows]
+        n = len(xs)
+        if n < 2:
+            return json.dumps({'ok': False, 'error': 'Need at least 2 data points.'})
+        sx  = sum(xs)
+        sy  = sum(ys)
+        sxy = sum(x * y for x, y in zip(xs, ys))
+        sxx = sum(x * x for x in xs)
+        den = n * sxx - sx * sx
+        if den == 0:
+            return json.dumps({'ok': False, 'error': 'All x values are identical.'})
+        slope     = (n * sxy - sx * sy) / den
+        intercept = (sy - slope * sx) / n
+        y_mean = sy / n
+        ss_tot = sum((y - y_mean) ** 2 for y in ys)
+        ss_res = sum((y - (slope * x + intercept)) ** 2 for x, y in zip(xs, ys))
+        r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 1.0
+        return json.dumps({
+            'ok': True, 'xs': xs, 'ys': ys,
+            'xcol': xcol, 'ycol': ycol,
+            'slope': slope, 'intercept': intercept, 'r2': r2,
+        })
+    except Exception as e:
+        return json.dumps({'ok': False, 'error': str(e)})
+
+def annotated_inc(text, slope, intercept, r2):
+    try:
+        with open('/tmp/reg.inc', 'w') as f:
+            f.write(text)
+        r = inccsv.read_inc('/tmp/reg.inc')
+        meta = dict(r.metadata)
+        meta['slope']     = str(round(slope, 6))
+        meta['intercept'] = str(round(intercept, 6))
+        meta['r_squared'] = str(round(r2, 6))
+        inccsv.write_inc('/tmp/reg_out.inc', r.rows, metadata=meta)
+        with open('/tmp/reg_out.inc') as f:
+            return json.dumps({'ok': True, 'text': f.read()})
+    except Exception as e:
+        return json.dumps({'ok': False, 'error': str(e)})
+`);
+      pyEl.textContent = 'Ready';
+      pyEl.className   = 'pyodide-status ready';
+      fitBtn.disabled = false;
+      fit();
+    }).catch(() => {});
+  </script>
+</body>
+</html>
