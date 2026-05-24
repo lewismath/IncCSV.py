@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IncCSV.py – Examples</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">IncCSV.py</div>
+    <nav class="nav" aria-label="Documentation">
+      <a href="./index.html">Overview</a>
+      <a href="./playground.html">Playground</a>
+      <a href="./examples.html" aria-current="page">Examples</a>
+      <a href="./schema.html">Schema</a>
+      <a href="./sir.html">SIR Model</a>
+      <a href="./regression.html">Regression</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Examples in practice</h1>
+    <p class="lede">
+      Pick an example to see the INC source, parsed metadata, rows, and the
+      Python code to produce the same result.
+    </p>
+    <div id="py-status" class="pyodide-status">Loading Python runtime…</div>
+    <section class="example-list">
+      <div class="example-buttons" id="buttons"></div>
+      <div class="panel">
+        <h2 id="ex-title">Example</h2>
+        <textarea id="source" class="short-textarea" spellcheck="false" readonly></textarea>
+        <h2 style="margin-top:16px">Metadata</h2>
+        <pre id="meta-out" class="output" style="min-height:90px"></pre>
+        <h2>Rows</h2>
+        <div id="rows-out"></div>
+        <h2 style="margin-top:16px">Python</h2>
+        <pre id="python-out" class="output" style="min-height:80px"></pre>
+      </div>
+    </section>
+  </main>
+  <script type="module">
+    import { initPyodide } from './pyodide-init.js';
+
+    const EXAMPLES = {
+      basic: {
+        label: 'Basic INC',
+        text: `---\ntitle = Sensor readings\nversion = 1\n[columns]\ntime = seconds\ntemperature = Celsius\n---\ntime,temperature\n0,21.4\n1,21.8\n2,22.1\n`,
+        python: `import inccsv\n\nf = inccsv.read_inc("data.inc")\nprint(f.metadata)\n# {'title': 'Sensor readings', 'version': 1,\n#  'columns': {'time': 'seconds', 'temperature': 'Celsius'}}\nprint(f.rows)\n# [{'time': '0', 'temperature': '21.4'}, ...]`,
+      },
+      tab: {
+        label: 'Tab-separated',
+        text: `---\ntitle = Tab-separated data\n[structure]\ndelim = tab\n---\nname\tscore\nAda\t21\nBabbage\t12\n`,
+        python: `import inccsv\n\n# [structure] delimiter is applied automatically\nf = inccsv.read_inc("data.inc")\nprint(f.rows)\n# [{'name': 'Ada', 'score': '21'},\n#  {'name': 'Babbage', 'score': '12'}]`,
+      },
+      write: {
+        label: 'Writing INC',
+        text: `---\ndate = 2026-05-24\ntitle = Experiment results\n[columns]\nx = input value\ny = measured output\n---\nx,y\n1,2.1\n2,4.0\n3,5.9\n`,
+        python: `import inccsv\n\nrows = [\n    {'x': '1', 'y': '2.1'},\n    {'x': '2', 'y': '4.0'},\n    {'x': '3', 'y': '5.9'},\n]\nmeta = {\n    'title': 'Experiment results',\n    'date': '2026-05-24',\n    'columns': {'x': 'input value', 'y': 'measured output'},\n}\ninccsv.write_inc("out.inc", rows, metadata=meta)`,
+      },
+      pandas: {
+        label: 'Pandas integration',
+        text: `---\ntitle = Climate data\n[columns]\nyear = calendar year\ntemp_c = mean temperature (Celsius)\nco2_ppm = CO2 concentration\n---\nyear,temp_c,co2_ppm\n2020,14.9,412.5\n2021,14.8,414.2\n2022,15.1,417.1\n`,
+        python: `import inccsv\n\nf = inccsv.read_inc("climate.inc")\ndf = f.to_dataframe()\n# Returns a pandas DataFrame\nprint(df.dtypes)\n# year        object\n# temp_c      object\n# co2_ppm     object\n\n# Cast columns as needed:\ndf['year']    = df['year'].astype(int)\ndf['temp_c']  = df['temp_c'].astype(float)`,
+      },
+      plain: {
+        label: 'Plain CSV passthrough',
+        text: `name,score\nAda,21\nBabbage,12\n`,
+        python: `import inccsv\n\n# Plain CSV files work unchanged\nf = inccsv.read_inc("data.csv")\nprint(f.metadata)  # {}\nprint(f.rows)\n# [{'name': 'Ada', 'score': '21'},\n#  {'name': 'Babbage', 'score': '12'}]`,
+      },
+    };
+
+    const pyEl     = document.getElementById('py-status');
+    const buttons  = document.getElementById('buttons');
+    const sourceEl = document.getElementById('source');
+    const titleEl  = document.getElementById('ex-title');
+    const metaEl   = document.getElementById('meta-out');
+    const rowsEl   = document.getElementById('rows-out');
+    const pythonEl = document.getElementById('python-out');
+
+    let py = null;
+
+    function esc(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function renderRows(rows) {
+      if (!rows.length) return '<p style="color:var(--muted);font-size:.9rem">No rows.</p>';
+      const cols = Object.keys(rows[0]);
+      return `<div class="table-wrap"><table>
+        <thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${esc(r[c] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>`;
+    }
+
+    async function showExample(key) {
+      const ex = EXAMPLES[key];
+      for (const btn of buttons.querySelectorAll('button')) {
+        btn.classList.toggle('active', btn.dataset.key === key);
+      }
+      titleEl.textContent  = ex.label;
+      sourceEl.value       = ex.text;
+      pythonEl.textContent = ex.python;
+      if (py) {
+        const raw = await py.runPythonAsync(`parse_text(${JSON.stringify(ex.text)})`);
+        const res = JSON.parse(raw);
+        metaEl.textContent = res.ok ? JSON.stringify(res.metadata, null, 2) : res.error;
+        rowsEl.innerHTML   = res.ok ? renderRows(res.rows) : '';
+      } else {
+        metaEl.textContent = 'Loading…';
+        rowsEl.innerHTML   = '';
+      }
+    }
+
+    for (const key of Object.keys(EXAMPLES)) {
+      const btn = document.createElement('button');
+      btn.textContent = EXAMPLES[key].label;
+      btn.dataset.key = key;
+      btn.addEventListener('click', () => showExample(key));
+      buttons.append(btn);
+    }
+
+    showExample('basic');
+
+    initPyodide((msg, isError) => {
+      pyEl.textContent = msg;
+      pyEl.className   = 'pyodide-status' + (isError ? ' error' : '');
+    }).then(pyodide => {
+      py = pyodide;
+      py.runPython(`
+import json, inccsv
+
+def parse_text(text):
+    with open('/tmp/ex.inc', 'w') as f:
+        f.write(text)
+    try:
+        r = inccsv.read_inc('/tmp/ex.inc')
+        return json.dumps({'ok': True, 'metadata': r.metadata, 'rows': r.rows})
+    except Exception as e:
+        return json.dumps({'ok': False, 'error': str(e)})
+`);
+      pyEl.textContent = 'Ready';
+      pyEl.className   = 'pyodide-status ready';
+      showExample(Object.keys(EXAMPLES)[0]);
+    }).catch(() => {});
+  </script>
+</body>
+</html>
