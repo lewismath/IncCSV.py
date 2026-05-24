@@ -24,6 +24,15 @@ The goal is to make tabular data self-describing — units, provenance, and othe
 
 See the [Julia reference implementation](https://github.com/mroughan/IncCSV.jl) for the full format specification and design rationale.
 
+## Interactive demos
+
+**[lewismath.github.io/IncCSV.py](https://lewismath.github.io/IncCSV.py/)** — live Python demos in the browser (no installation needed):
+- [Playground](https://lewismath.github.io/IncCSV.py/playground.html) — parse and write INC text interactively
+- [Examples](https://lewismath.github.io/IncCSV.py/examples.html) — common patterns with Python code
+- [Schema validator](https://lewismath.github.io/IncCSV.py/schema.html)
+- [SIR epidemic model](https://lewismath.github.io/IncCSV.py/sir.html) — simulation with INC download
+- [Linear regression](https://lewismath.github.io/IncCSV.py/regression.html) — annotate data with fitted parameters
+
 ## Installation
 
 ```bash
