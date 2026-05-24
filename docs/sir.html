@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IncCSV.py – SIR Model</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">IncCSV.py</div>
+    <nav class="nav" aria-label="Documentation">
+      <a href="./index.html">Overview</a>
+      <a href="./playground.html">Playground</a>
+      <a href="./examples.html">Examples</a>
+      <a href="./schema.html">Schema</a>
+      <a href="./sir.html" aria-current="page">SIR Model</a>
+      <a href="./regression.html">Regression</a>
+    </nav>
+  </header>
+  <main>
+    <h1>SIR epidemic model</h1>
+    <p class="lede">
+      The SIR model tracks how an infection spreads through a closed population.
+      Adjust the parameters, run the simulation, then download the result as a
+      self-describing INC file — parameters stored as metadata, daily counts as CSV rows.
+    </p>
+
+    <div id="py-status" class="pyodide-status">Loading Python runtime…</div>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="inp-N">Population (N)</label>
+        <input type="number" id="inp-N" value="10000" min="100" max="10000000" step="1000">
+      </div>
+      <div class="control-group">
+        <label for="inp-beta">Transmission rate (β)</label>
+        <input type="number" id="inp-beta" value="0.30" min="0.01" max="2.00" step="0.01">
+        <span class="hint">Contacts per day × prob. of transmission</span>
+      </div>
+      <div class="control-group">
+        <label for="inp-gamma">Recovery rate (γ)</label>
+        <input type="number" id="inp-gamma" value="0.10" min="0.01" max="1.00" step="0.01">
+        <span class="hint">1/γ = mean days infectious</span>
+      </div>
+      <div class="control-group">
+        <label for="inp-I0">Initial infected (I₀)</label>
+        <input type="number" id="inp-I0" value="10" min="1" max="10000" step="1">
+      </div>
+      <div class="control-group">
+        <label for="inp-days">Days to simulate</label>
+        <input type="number" id="inp-days" value="160" min="10" max="1000" step="10">
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button id="run-btn" disabled>Run simulation</button>
+      <button id="dl-btn" class="secondary" disabled>Download as INC</button>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas id="chart"></canvas>
+    </div>
+
+    <div class="result-box" id="stats" style="display:none">
+      <div>
+        <div class="result-label">R₀ = β / γ</div>
+        <div class="result-value" id="stat-r0"></div>
+      </div>
+      <div>
+        <div class="result-label">Peak infected</div>
+        <div class="result-value" id="stat-peak-I"></div>
+      </div>
+      <div>
+        <div class="result-label">Peak day</div>
+        <div class="result-value" id="stat-peak-day"></div>
+      </div>
+      <div>
+        <div class="result-label">Total recovered</div>
+        <div class="result-value" id="stat-R"></div>
+      </div>
+    </div>
+  </main>
+  <script type="module">
+    import { initPyodide } from './pyodide-init.js';
+
+    const pyEl   = document.getElementById('py-status');
+    const runBtn = document.getElementById('run-btn');
+    const dlBtn  = document.getElementById('dl-btn');
+    const statsEl= document.getElementById('stats');
+    const canvas = document.getElementById('chart');
+
+    let py = null, chart = null, lastRows = null;
+
+    function getParams() {
+      return {
+        N:     Number(document.getElementById('inp-N').value),
+        beta:  Number(document.getElementById('inp-beta').value),
+        gamma: Number(document.getElementById('inp-gamma').value),
+        I0:    Number(document.getElementById('inp-I0').value),
+        days:  Number(document.getElementById('inp-days').value),
+      };
+    }
+
+    function drawChart(rows) {
+      const labels = rows.map(r => r.day);
+      if (chart) chart.destroy();
+      chart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Susceptible', data: rows.map(r => r.S), borderColor: '#326a9b', pointRadius: 0, borderWidth: 2, tension: 0.2 },
+            { label: 'Infected',    data: rows.map(r => r.I), borderColor: '#aa3f3f', pointRadius: 0, borderWidth: 2, tension: 0.2 },
+            { label: 'Recovered',   data: rows.map(r => r.R), borderColor: '#2f7d5b', pointRadius: 0, borderWidth: 2, tension: 0.2 },
+          ],
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            x: { title: { display: true, text: 'Day' } },
+            y: { title: { display: true, text: 'Individuals' }, beginAtZero: true },
+          },
+        },
+      });
+    }
+
+    async function run() {
+      if (!py) return;
+      const p = getParams();
+      const raw = await py.runPythonAsync(
+        `run_sir(${p.N}, ${p.beta}, ${p.gamma}, ${p.I0}, ${p.days})`
+      );
+      lastRows = JSON.parse(raw);
+      drawChart(lastRows);
+      const peak = lastRows.reduce((a, b) => b.I > a.I ? b : a, lastRows[0]);
+      document.getElementById('stat-r0').textContent      = (p.beta / p.gamma).toFixed(2);
+      document.getElementById('stat-peak-I').textContent  = Math.round(peak.I).toLocaleString();
+      document.getElementById('stat-peak-day').textContent= peak.day;
+      document.getElementById('stat-R').textContent       = Math.round(lastRows.at(-1).R).toLocaleString();
+      statsEl.style.display = 'grid';
+      dlBtn.disabled = false;
+    }
+
+    async function download() {
+      if (!py || !lastRows) return;
+      const p = getParams();
+      const raw = await py.runPythonAsync(
+        `make_inc(${p.N}, ${p.beta}, ${p.gamma}, ${p.I0}, ${p.days}, ${JSON.stringify(lastRows)})`
+      );
+      const res = JSON.parse(raw);
+      if (!res.ok) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([res.text], { type: 'text/plain' }));
+      a.download = 'sir_simulation.inc';
+      a.click();
+    }
+
+    runBtn.addEventListener('click', run);
+    dlBtn.addEventListener('click', download);
+
+    initPyodide((msg, isError) => {
+      pyEl.textContent = msg;
+      pyEl.className   = 'pyodide-status' + (isError ? ' error' : '');
+    }).then(pyodide => {
+      py = pyodide;
+      py.runPython(`
+import json, inccsv
+
+def run_sir(N, beta, gamma, I0, days):
+    S, I, R = float(N - I0), float(I0), 0.0
+    dt = 0.5
+    steps = int(1 / dt)
+    rows = [{'day': 0, 'S': round(S), 'I': round(I), 'R': round(R)}]
+    for day in range(1, int(days) + 1):
+        for _ in range(steps):
+            new_inf = beta * S * I / N * dt
+            new_rec = gamma * I * dt
+            S -= new_inf
+            I += new_inf - new_rec
+            R += new_rec
+        rows.append({'day': day, 'S': round(S), 'I': round(I), 'R': round(R)})
+    return json.dumps(rows)
+
+def make_inc(N, beta, gamma, I0, days, rows):
+    try:
+        str_rows = [{'day': str(r['day']), 'S': str(r['S']),
+                     'I': str(r['I']), 'R': str(r['R'])} for r in rows]
+        meta = {
+            'title': 'SIR epidemic simulation',
+            'population': int(N),
+            'beta': str(round(beta, 4)),
+            'gamma': str(round(gamma, 4)),
+            'initial_infected': int(I0),
+            'days': int(days),
+            'columns': {
+                'day': 'simulation day',
+                'S': 'susceptible individuals',
+                'I': 'infected individuals',
+                'R': 'recovered individuals',
+            },
+        }
+        inccsv.write_inc('/tmp/sir.inc', str_rows, metadata=meta)
+        with open('/tmp/sir.inc') as f:
+            return json.dumps({'ok': True, 'text': f.read()})
+    except Exception as e:
+        return json.dumps({'ok': False, 'error': str(e)})
+`);
+      pyEl.textContent = 'Ready';
+      pyEl.className   = 'pyodide-status ready';
+      runBtn.disabled = false;
+      run();
+    }).catch(() => {});
+  </script>
+</body>
+</html>
