@@ -95,9 +95,9 @@
       statusEl.className   = 'status ' + (bad ? 'bad' : 'good');
     }
 
-    function parse() {
+    async function parse() {
       if (!py) return;
-      const raw = py.runPython(`parse_text(${JSON.stringify(inputEl.value)})`);
+      const raw = await py.runPythonAsync(`parse_text(${JSON.stringify(inputEl.value)})`);
       const res = JSON.parse(raw);
       if (res.ok) {
         metaEl.textContent = JSON.stringify(res.metadata, null, 2);
@@ -110,21 +110,22 @@
       }
     }
 
-    function writeCanonical() {
+    async function writeCanonical() {
       if (!py) return;
-      const raw = py.runPython(`write_canonical(${JSON.stringify(inputEl.value)})`);
+      const raw = await py.runPythonAsync(`write_canonical(${JSON.stringify(inputEl.value)})`);
       const res = JSON.parse(raw);
       if (res.ok) {
         inputEl.value = res.text;
-        parse();
+        await parse();
+        if (res.metadata_empty) setStatus('Written in canonical form. Plain CSV is wrapped in an INC header — delete the --- lines to remove it.');
       } else {
         setStatus(res.error, true);
       }
     }
 
-    function loadSample() {
+    async function loadSample() {
       inputEl.value = SAMPLES[sampleEl.value];
-      if (py) parse();
+      if (py) await parse();
     }
 
     initPyodide((msg, isError) => {
@@ -151,7 +152,7 @@ def write_canonical(text):
         r = inccsv.read_inc('/tmp/pg.inc')
         inccsv.write_inc('/tmp/pg_out.inc', r.rows, metadata=r.metadata)
         with open('/tmp/pg_out.inc') as f:
-            return json.dumps({'ok': True, 'text': f.read()})
+            return json.dumps({'ok': True, 'text': f.read(), 'metadata_empty': not r.metadata})
     except Exception as e:
         return json.dumps({'ok': False, 'error': str(e)})
 `);
