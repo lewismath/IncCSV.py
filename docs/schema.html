@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IncCSV.py – Schema</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">IncCSV.py</div>
+    <nav class="nav" aria-label="Documentation">
+      <a href="./index.html">Overview</a>
+      <a href="./playground.html">Playground</a>
+      <a href="./examples.html">Examples</a>
+      <a href="./schema.html" aria-current="page">Schema</a>
+      <a href="./sir.html">SIR Model</a>
+      <a href="./regression.html">Regression</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Schema validator</h1>
+    <p class="lede">
+      Write a schema INC file declaring which metadata fields are required, optional,
+      or forbidden. Then validate a data file against it.
+    </p>
+    <div id="py-status" class="pyodide-status">Loading Python runtime…</div>
+    <div class="toolbar">
+      <button id="validate-btn" disabled>Validate</button>
+    </div>
+    <section class="workspace">
+      <div class="panel">
+        <h2>Schema</h2>
+        <textarea id="schema-in" spellcheck="false">---
+[schema]
+allow_extra = false
+
+[MUST]
+title = String
+columns.temperature = String
+
+[OPTIONAL]
+version = Int
+columns.time = String
+
+[description]
+title = Human-readable title
+columns.temperature = Units for temperature column
+---
+</textarea>
+      </div>
+      <div class="panel">
+        <h2>Data file</h2>
+        <textarea id="data-in" spellcheck="false">---
+title = Sensor readings
+version = 1
+[columns]
+time = seconds
+temperature = Celsius
+---
+time,temperature
+0,21.4
+1,21.8
+</textarea>
+        <h2 style="margin-top:16px">Result</h2>
+        <div id="result-out" style="min-height:60px"></div>
+      </div>
+    </section>
+  </main>
+  <script type="module">
+    import { initPyodide } from './pyodide-init.js';
+
+    const pyEl       = document.getElementById('py-status');
+    const schemaEl   = document.getElementById('schema-in');
+    const dataEl     = document.getElementById('data-in');
+    const resultEl   = document.getElementById('result-out');
+    const validateBtn = document.getElementById('validate-btn');
+
+    let py = null;
+
+    function tag(label, items, color) {
+      if (!items.length) return '';
+      return `<p style="margin:6px 0"><strong style="color:${color}">${label}:</strong> ${items.join(', ')}</p>`;
+    }
+
+    function renderResult(res) {
+      if (!res.ok) {
+        return `<div class="status bad">${res.error}</div>`;
+      }
+      const r = res.result;
+      const icon  = r.valid ? '✓' : '✗';
+      const color = r.valid ? 'var(--green)' : 'var(--red)';
+      const allClear = !r.missing.length && !r.forbidden.length && !r.extra.length;
+      return `<div style="padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:8px">
+        <p style="font-size:1.15rem;font-weight:700;color:${color};margin:0 0 10px">${icon} ${r.valid ? 'Valid' : 'Invalid'}</p>
+        ${tag('Missing (required but absent)', r.missing, 'var(--red)')}
+        ${tag('Forbidden (must not be present)', r.forbidden, 'var(--red)')}
+        ${tag('Extra (undeclared fields)', r.extra, 'var(--gold)')}
+        ${allClear ? '<p style="color:var(--muted);font-size:.9rem;margin:0">All fields accounted for.</p>' : ''}
+      </div>`;
+    }
+
+    async function validate() {
+      if (!py) return;
+      const raw = await py.runPythonAsync(
+        `validate_files(${JSON.stringify(schemaEl.value)}, ${JSON.stringify(dataEl.value)})`
+      );
+      resultEl.innerHTML = renderResult(JSON.parse(raw));
+    }
+
+    validateBtn.addEventListener('click', validate);
+
+    initPyodide((msg, isError) => {
+      pyEl.textContent = msg;
+      pyEl.className   = 'pyodide-status' + (isError ? ' error' : '');
+    }).then(pyodide => {
+      py = pyodide;
+      py.runPython(`
+import json, inccsv
+
+def validate_files(schema_text, data_text):
+    try:
+        with open('/tmp/schema.inc', 'w') as f:
+            f.write(schema_text)
+        with open('/tmp/data.inc', 'w') as f:
+            f.write(data_text)
+        schema = inccsv.read_schema('/tmp/schema.inc')
+        data   = inccsv.read_inc('/tmp/data.inc')
+        r = inccsv.validate_schema(data, schema)
+        return json.dumps({'ok': True, 'result': {
+            'valid':    r.valid,
+            'missing':  r.missing,
+            'extra':    r.extra,
+            'forbidden':r.forbidden,
+        }})
+    except Exception as e:
+        return json.dumps({'ok': False, 'error': str(e)})
+`);
+      pyEl.textContent = 'Ready';
+      pyEl.className   = 'pyodide-status ready';
+      validateBtn.disabled = false;
+      validate();
+    }).catch(() => {});
+  </script>
+</body>
+</html>
