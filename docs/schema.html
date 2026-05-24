@@ -79,9 +79,13 @@ time,temperature
 
     let py = null;
 
+    function esc(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
     function tag(label, items, color) {
       if (!items.length) return '';
-      return `<p style="margin:6px 0"><strong style="color:${color}">${label}:</strong> ${items.join(', ')}</p>`;
+      return `<p style="margin:6px 0"><strong style="color:${color}">${label}:</strong> ${items.map(esc).join(', ')}</p>`;
     }
 
     function renderResult(res) {
