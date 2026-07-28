@@ -81,3 +81,11 @@ def test_roundtrip_escaped(tmp_path):
     out = tmp_path / "out.inc"
     write_inc(str(out), inc.rows, metadata=inc.metadata)
     assert out.read_text() == fixture.read_text()
+
+
+def test_roundtrip_structure_tsv(tmp_path):
+    fixture = FIXTURES / "roundtrip" / "structure_tsv_expected.inc"
+    inc = read_inc(str(fixture))
+    out = tmp_path / "out.inc"
+    write_inc(str(out), inc.rows, metadata=inc.metadata)
+    assert out.read_text() == fixture.read_text()

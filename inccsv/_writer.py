@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from ._parser import MetadataDict, _INVALID_NAME_RE
+from ._structure import structure_write_kwargs
 
 _INT_PATTERN = re.compile(r'^[+-]?\d+$')
 # Characters that Julia's escape_value also quotes; quoting these prevents
@@ -100,14 +101,18 @@ def write_inc(
         path: Output file path.
         rows: List of dicts representing CSV rows.
         metadata: Nested metadata dict. Values must be int or str.
-        **csv_kwargs: Forwarded to csv.DictWriter (e.g., delimiter=';').
+        **csv_kwargs: Forwarded to csv.DictWriter (e.g., delimiter=';'). Writer-relevant
+                      [structure] metadata (delim/delimiter, quotechar, escapechar) is
+                      applied automatically; an explicit kwarg here must agree with it.
 
     Raises:
-        ValueError: if metadata contains invalid names, values, or empty sections.
+        ValueError: if metadata contains invalid names, values, or empty sections,
+            or if a csv_kwargs value contradicts [structure] metadata.
     """
     if metadata is None:
         metadata = {}
 
+    csv_kwargs = structure_write_kwargs(metadata, csv_kwargs)
     meta_lines = _metadata_to_lines(metadata)
 
     with open(path, 'w', encoding='utf-8', newline='') as f:

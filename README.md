@@ -118,6 +118,7 @@ inccsv.print_summary(f)
 
 - Metadata values are `int` (unquoted integers) or `str` (everything else). Quote values that look like integers to preserve them as strings: `id = "007"`.
 - The `[structure]` section passes CSV options to the reader: `delimiter`, `quotechar`, `comment`.
+- `write_inc` also applies writer-relevant `[structure]` metadata (`delim`/`delimiter`, `quotechar`, `escapechar`) to the CSV component it writes. An explicit `csv_kwargs` value that contradicts `[structure]` metadata raises `ValueError` rather than writing a file whose metadata misdescribes its own CSV component. `write_inc` never infers or writes `[structure]` metadata on its own — supply it explicitly if a file needs it.
 - The delimiter line accepts any sequence of 3+ Unicode dash characters (`-`, `–`, `—`, …).
 - Files are UTF-8 encoded.
 

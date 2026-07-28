@@ -144,6 +144,67 @@ def test_write_section_keys_sorted(tmp_path):
     assert content.index("a = first") < content.index("z = last")
 
 
+def test_write_structure_delimiter_applied_without_explicit_kwarg(tmp_path):
+    path = str(tmp_path / "out.inc")
+    rows = [{"name": "Ada", "score": "10"}]
+    metadata = {"structure": {"delimiter": "tab"}}
+    write_inc(path, rows, metadata=metadata)
+    content = (tmp_path / "out.inc").read_text()
+    assert "name\tscore" in content
+    assert "name,score" not in content
+
+
+def test_write_structure_delimiter_roundtrips_via_read_inc(tmp_path):
+    path = str(tmp_path / "out.inc")
+    rows = [{"name": "Ada", "score": "10"}]
+    metadata = {"structure": {"delimiter": "tab"}}
+    write_inc(path, rows, metadata=metadata)
+    result = read_inc(path)
+    assert result.rows == rows
+
+
+def test_write_structure_delimiter_matching_explicit_kwarg_accepted(tmp_path):
+    path = str(tmp_path / "out.inc")
+    rows = [{"name": "Ada", "score": "10"}]
+    metadata = {"structure": {"delimiter": "tab"}}
+    write_inc(path, rows, metadata=metadata, delimiter="\t")
+    result = read_inc(path)
+    assert result.rows == rows
+
+
+def test_write_structure_delimiter_contradicting_explicit_kwarg_raises(tmp_path):
+    path = str(tmp_path / "out.inc")
+    rows = [{"name": "Ada", "score": "10"}]
+    metadata = {"structure": {"delimiter": "tab"}}
+    with pytest.raises(ValueError, match="delimiter"):
+        write_inc(path, rows, metadata=metadata, delimiter=";")
+
+
+def test_write_structure_quotechar_applied(tmp_path):
+    path = str(tmp_path / "out.inc")
+    rows = [{"name": "a,b"}]
+    metadata = {"structure": {"quotechar": "'"}}
+    write_inc(path, rows, metadata=metadata)
+    content = (tmp_path / "out.inc").read_text()
+    assert "'a,b'" in content
+
+
+def test_write_structure_escapechar_contradicting_explicit_kwarg_raises(tmp_path):
+    path = str(tmp_path / "out.inc")
+    rows = [{"name": "a"}]
+    metadata = {"structure": {"escapechar": "\\"}}
+    with pytest.raises(ValueError, match="escapechar"):
+        write_inc(path, rows, metadata=metadata, escapechar="!")
+
+
+def test_write_structure_does_not_infer_metadata_from_kwargs(tmp_path):
+    path = str(tmp_path / "out.inc")
+    rows = [{"name": "Ada", "score": "10"}]
+    write_inc(path, rows, metadata={}, delimiter=";")
+    content = (tmp_path / "out.inc").read_text()
+    assert "[structure]" not in content
+
+
 def test_write_invalid_top_level_key_raises():
     with pytest.raises(ValueError, match=r"[Ii]nvalid.*'bad key'"):
         write_inc("/dev/null", [], metadata={"bad key": "v"})

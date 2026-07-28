@@ -7,26 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ._parser import split_inc, parse_metadata, MetadataDict
-
-# Keyword aliases for single-character [structure] values.
-_CHAR_ALIASES: dict[str, str] = {"tab": "\t", "\\t": "\t", "space": " "}
-
-# Canonical [structure] key allowlist — spec structure.md.
-_STRUCTURE_ALLOWED_KEYS = frozenset({
-    "delim", "delimiter", "quotechar", "escapechar", "comment", "header", "footerskip"
-})
-
-
-def _coerce_char(value: int | str) -> str:
-    """Translate a [structure] char value: keyword alias or int code point → str."""
-    if isinstance(value, int):
-        return chr(value)
-    s = _CHAR_ALIASES.get(str(value).lower(), str(value))
-    if len(s) != 1:
-        raise ValueError(
-            f"[structure] character value must resolve to a single character, got {value!r}"
-        )
-    return s
+from ._structure import structure_csv_kwargs, validate_structure_keys
 
 
 @dataclass
@@ -49,24 +30,12 @@ class IncFile:
 def _csv_kwargs_from_metadata(metadata: MetadataDict) -> tuple[dict[str, Any], str | None, int, int]:
     """Extract csv.DictReader kwargs, comment char, header line, and footerskip from [structure]."""
     structure = metadata.get("structure", {})
-    kwargs: dict[str, Any] = {}
     comment_char: str | None = None
     header: int = 1
     footerskip: int = 0
+    kwargs: dict[str, Any] = structure_csv_kwargs(metadata)
     if isinstance(structure, dict):
-        for key in structure:
-            if key not in _STRUCTURE_ALLOWED_KEYS:
-                raise ValueError(
-                    f"[structure] contains unknown key {key!r}. "
-                    f"Allowed keys: {sorted(_STRUCTURE_ALLOWED_KEYS)}"
-                )
-        delim_value = structure.get("delimiter") if "delimiter" in structure else structure.get("delim")
-        if delim_value is not None:
-            kwargs["delimiter"] = _coerce_char(delim_value)
-        if "quotechar" in structure:
-            kwargs["quotechar"] = _coerce_char(structure["quotechar"])
-        if "escapechar" in structure:
-            kwargs["escapechar"] = _coerce_char(structure["escapechar"])
+        validate_structure_keys(structure)
         if "comment" in structure:
             comment_raw = structure["comment"]
             if not isinstance(comment_raw, str) or len(comment_raw) != 1:
